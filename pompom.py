@@ -21,11 +21,14 @@ def javac(file):
 
 
 def get_xml_elements(xml_document, tag_name):
-    return xml_document.getElementsByTagName(tag_name)
+    if xml_document and xml_document.getElementsByTagName(tag_name):
+        return xml_document.getElementsByTagName(tag_name)
+    else:
+        return {}
 
 
 def get_xml_element(xml_document, tag_name, index=0):
-    if xml_document.getElementsByTagName(tag_name):
+    if xml_document and xml_document.getElementsByTagName(tag_name):
         return xml_document.getElementsByTagName(tag_name)[index]
     else:
         return None
