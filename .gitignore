@@ -1,4 +1,5 @@
 *.pyc
 firebase_analytics/
 gpgs/
+facebook/
 .DS_Store

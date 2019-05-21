@@ -19,6 +19,23 @@ def javac(file):
     javac = "javac -source 1.7 -target 1.7 %s" % (file)
     call(javac, shell=True)
 
+def get_element_value(element):
+    if element and element.childNodes:
+        return element.childNodes[0].nodeValue
+    else:
+        return None
+
+def get_child_element(xml_document, tag_name):
+    if xml_document is None:
+        return None
+    for child in xml_document.childNodes:
+        if child.nodeName == tag_name:
+            return child
+    return None
+
+def get_child_value(xml_document, tag_name):
+    child = get_child_element(xml_document, tag_name)
+    return get_element_value(child)
 
 def get_xml_elements(xml_document, tag_name):
     if xml_document and xml_document.getElementsByTagName(tag_name):
@@ -33,14 +50,10 @@ def get_xml_element(xml_document, tag_name, index=0):
     else:
         return None
 
-
 def get_xml_value(xml_document, tag_name, default=None):
     if xml_document and xml_document.getElementsByTagName(tag_name):
         node = xml_document.getElementsByTagName(tag_name)[0]
-        if node.childNodes:
-            return node.childNodes[0].nodeValue
-        else:
-            return default
+        return get_element_value(node)
     else:
         return default
 
@@ -181,7 +194,8 @@ def process_aar(name, aar_file, args, manifest_file):
         for file in find_files(os.path.join(zip_dir, "res"), "values*.xml"):
             os.rename(file, os.path.join(os.path.dirname(file), name + "-" + os.path.basename(file)))
 
-        if os.path.getsize(os.path.join(zip_dir, "R.txt")) > 0:
+        r_file = os.path.join(zip_dir, "R.txt")
+        if os.path.exists(r_file) and os.path.getsize(r_file) > 0:
             # generate R.java
             manifest_xml = os.path.join(zip_dir, "AndroidManifest.xml")
             res_dir = os.path.join(zip_dir, "res")
@@ -253,63 +267,123 @@ def process_dependencies(dependencies, args):
         process_dependency(name, url, args, manifest_file)
 
 
-
+maven_url_cache = {}
 
 #
 # Translate a group into a URL
 #
 def maven_url(group_id, artifact_id, version, extension):
-    GROUP_TO_REPO = {
-        "com.google.firebase": "https://maven.google.com",
-        "com.google.android.gms": "https://maven.google.com",
-        "com.android.support": "https://maven.google.com",
-        "android.arch.lifecycle": "https://maven.google.com",
-        "android.arch.core": "https://maven.google.com",
-        "junit": "http://central.maven.org/maven2",
-        "org.hamcrest": "http://central.maven.org/maven2",
-    }
     filename = artifact_id + "-" + version + "." + extension
-    repo = GROUP_TO_REPO.get(group_id)
-    if not repo:
-        print("Unknown group {}".format(group_id))
-        sys.exit(1)
-    return "/".join([repo, group_id.replace(".", "/"), artifact_id, version, filename])
+    if maven_url_cache.get(filename):
+        return maven_url_cache.get(filename)
 
+    REPOS = ["https://maven.google.com", "http://central.maven.org/maven2", "http://repo.spring.io/libs-release"]
+    for repo in REPOS:
+        url = "/".join([repo, group_id.replace(".", "/"), artifact_id, version, filename])
+        if urllib.urlopen(url).code == 200:
+            maven_url_cache[filename] = url
+            return url
+    print("Unable to find a url for group {} artifact {) version {} and extension {}".format(url, group_id, artifact_id, version, extension))
+    exit(1)
+
+
+pom_cache = {}
+
+#
+# Recurseively download a POM and all its parents
+#
+def download_pom(pom_url):
+    print("Downloading artifact '{}'".format(pom_url))
+    if pom_cache.get(pom_url):
+        print("  Ignoring artifact '{}' since it has already been downloaded".format(pom_url))
+        return
+
+    # download and parse pom
+    with tmpdir() as tmp_dir:
+        pom_file = download_file(pom_url, tmp_dir)
+        xmldoc = minidom.parse(pom_file)
+
+    pom_cache[pom_url] = xmldoc
+
+    # download and parse parent POMs recursively
+    project = get_xml_element(xmldoc, "project")
+    parent = get_xml_element(project, "parent")
+    if parent:
+        parent_group_id = get_child_value(parent, "groupId")
+        parent_artifact_id = get_child_value(parent, "artifactId")
+        parent_version_id = get_child_value(parent, "version")
+        parent_pom_url = maven_url(parent_group_id, parent_artifact_id, parent_version_id, "pom")
+        print("  Downloading parent artifact '{}'".format(parent_pom_url))
+        download_pom(parent_pom_url)
+
+
+#
+# Get an element from a POM
+# This will take inheritance into consideration by first looking at any parent POMs
+#
+def get_pom_element(pom_url, tag_name):
+    # some values are never inherited from parent POMs
+    NOT_INHERITED = ["artifactId", "name", "prerequisites"]
+
+    xmldoc = pom_cache[pom_url]
+    project = get_xml_element(xmldoc, "project")
+
+    element = get_child_element(project, tag_name)
+    if element:
+        return element
+    elif tag_name in NOT_INHERITED:
+        return default
+
+    parent = get_xml_element(project, "parent")
+    if parent:
+        parent_group_id = get_child_value(parent, "groupId")
+        parent_artifact_id = get_child_value(parent, "artifactId")
+        parent_version_id = get_child_value(parent, "version")
+        parent_pom_url = maven_url(parent_group_id, parent_artifact_id, parent_version_id, "pom")
+        return get_pom_element(parent_pom_url, tag_name)
+    else:
+        return None
+
+#
+# Get a value from a POM
+# This will take inheritance into consideration by first looking at any parent POMs
+#
+def get_pom_value(pom_url, tag_name, default=None):
+    value = get_element_value(get_pom_element(pom_url, tag_name))
+    if value:
+        return value
+    else:
+        return default
 
 #
 # Recursivley process POM files adding each to the output dictionary
 #
 def process_pom(pom_url, dependencies_out):
+    # Replace a template value ${foo} with the actual value read from a list of properties
     def replace_property(value, properties):
         if value and value.startswith("${"):
             value = value.replace("${", "").replace("}", "")
-            value = get_xml_value(properties, value)
+            value = get_child_value(properties, value)
         return value
 
-    def get_version(document):
-        version = get_xml_value(document, "version")
+    # Get the version tag value from an element
+    def get_version(element):
+        version = get_child_value(element, "version")
         if version:
             version = version.replace("[", "").replace("]", "").split(",", 1)[0]
         return version
 
-    def get_project_version(project):
-        version = get_version(project)
-        if not version:
-            version = get_version(get_xml_element(project, "parent"))
-        return version
+    # Get the version of this pom (will traverse parents)
+    def get_project_version():
+        return get_pom_value(pom_url, "version")
 
-    # download and parse pom
-    with tmpdir() as tmp_dir:
-        pom_file = download_file(pom_url, tmp_dir)
-        print("Processing artifact '{}'".format(pom_file))
-        xmldoc = minidom.parse(pom_file)
+    download_pom(pom_url)
 
-    project = get_xml_element(xmldoc, "project")
-    properties = get_xml_element(project, "properties")
-    group_id = get_xml_value(project, "groupId")
-    artifact_id = get_xml_value(project, "artifactId")
-    version = replace_property(get_project_version(project), properties)
-    packaging = get_xml_value(project, "packaging", "jar")
+    properties = get_pom_element(pom_url, "properties")
+    group_id = get_pom_value(pom_url, "groupId")
+    artifact_id = get_pom_value(pom_url, "artifactId")
+    packaging = get_pom_value(pom_url, "packaging", "jar")
+    version = replace_property(get_project_version(), properties)
     url = maven_url(group_id, artifact_id, version, packaging)
     dependency_id = group_id.replace(".", "-") + "-" + artifact_id
     if dependencies_out.get(dependency_id):
@@ -319,14 +393,14 @@ def process_pom(pom_url, dependencies_out):
     dependencies_out[dependency_id] = url
 
     # process artifact dependencies
-    dependencies = get_xml_element(project, "dependencies")
+    dependencies = get_pom_element(pom_url, "dependencies")
     if dependencies:
         for dependency in get_xml_elements(dependencies, "dependency"):
-            dependency_artifact_id = get_xml_value(dependency, "artifactId")
-            dependency_scope = get_xml_value(dependency, "scope")
+            dependency_artifact_id = get_child_value(dependency, "artifactId")
+            dependency_scope = get_child_value(dependency, "scope")
             if dependency_scope and dependency_scope != "test":
                 print("  Including artifact dependency '{}' with scope '{}'".format(dependency_artifact_id, dependency_scope))
-                dependency_group_id = get_xml_value(dependency, "groupId")
+                dependency_group_id = get_child_value(dependency, "groupId")
                 dependency_version = replace_property(get_version(dependency), properties) or version
                 dependency_pom_url = maven_url(dependency_group_id, dependency_artifact_id, dependency_version, "pom")
                 process_pom(dependency_pom_url, dependencies_out)
@@ -339,12 +413,6 @@ def process_pom(pom_url, dependencies_out):
 #
 def process_poms(poms):
     print("Downloading and processing POMs", poms)
-    # From https://firebase.google.com/docs/cpp/setup#dependencies_2
-    POMS = [
-        "https://maven.google.com/com/google/firebase/firebase-core/16.0.5/firebase-core-16.0.5.pom",
-        "https://maven.google.com/com/google/firebase/firebase-analytics/16.0.5/firebase-analytics-16.0.5.pom",
-        "https://maven.google.com/com/google/android/gms/play-services-base/16.0.1/play-services-base-16.0.1.pom"
-    ]
     dependencies = {}
     for pom in poms:
         process_pom(pom, dependencies)
