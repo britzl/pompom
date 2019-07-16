@@ -73,7 +73,7 @@ def prettify_xml(xml_document):
 
 def create_empty_manifest(filename):
     with open(filename, "w") as file:
-        file.write('<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><application/></manifest>')
+        file.write('<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    package="{{android.package}}">\n    <uses-sdk android:minSdkVersion="9"/>\n    <application>\n    </application></manifest>')
 
 
 def merge_manifest_files(src_manifest_name, dst_manifest_name, name):
@@ -221,7 +221,6 @@ def process_aar(name, aar_file, args, manifest_file):
         if os.path.exists(classes_jar):
             lib_dir = os.path.join(args.out, "lib", "android")
             classes_jar_dest = os.path.join(args.out, "lib", "android", name + "-" + os.path.basename(aar_file).replace(".aar", ".jar"))
-            print("Moving %s to %s" % (classes_jar, classes_jar_dest))
             shutil.move(classes_jar, classes_jar_dest)
 
         # merge manifest
@@ -258,13 +257,14 @@ def process_dependency(name, url, args, manifest_file):
 def process_dependencies(dependencies, args):
     print("Downloading and unpacking Android dependencies")
 
-    manifest_file = os.path.join(args.out, "AndroidManifest.xml")
+    manifest_file = os.path.join(manifest_dir, "AndroidManifest.xml")
     if os.path.exists(manifest_file):
         os.remove(manifest_file)
-    download_android_manifest(manifest_file)
+    #download_android_manifest(manifest_file)
+    create_empty_manifest(manifest_file)
 
-    for name, url in dependencies.iteritems():
-        process_dependency(name, url, args, manifest_file)
+    for name, data in dependencies.iteritems():
+        process_dependency(data["group_id"], data["url"], args, manifest_file)
 
 
 maven_url_cache = {}
@@ -385,12 +385,12 @@ def process_pom(pom_url, dependencies_out):
     packaging = get_pom_value(pom_url, "packaging", "jar")
     version = replace_property(get_project_version(), properties)
     url = maven_url(group_id, artifact_id, version, packaging)
-    dependency_id = group_id.replace(".", "-") + "-" + artifact_id
+    group_formatted = group_id.replace(".", "-")
+    dependency_id = group_formatted + "-" + artifact_id
     if dependencies_out.get(dependency_id):
         print("  Ignoring artifact '{}' since it has already been processed".format(dependency_id))
         return
-
-    dependencies_out[dependency_id] = url
+    dependencies_out[dependency_id] = {"url":url, "group_id":group_formatted}
 
     # process artifact dependencies
     dependencies = get_pom_element(pom_url, "dependencies")
@@ -447,6 +447,10 @@ if not os.path.exists(args.out):
 lib_dir = os.path.join(args.out, "lib", "android")
 if not os.path.exists(lib_dir):
     os.makedirs(lib_dir)
+
+manifest_dir = os.path.join(args.out, "manifests", "android")
+if not os.path.exists(manifest_dir):
+    os.makedirs(manifest_dir)
 
 res_dir = os.path.join(args.out, "res", "android", "res")
 if not os.path.exists(res_dir):
