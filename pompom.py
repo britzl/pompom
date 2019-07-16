@@ -169,7 +169,6 @@ def copy_merge(src, dst):
         else:
             os.rename(src_file, dst_file)
 
-
 def find_files(root_dir, file_pattern):
     matches = []
     for root, dirnames, filenames in os.walk(root_dir):
@@ -214,7 +213,12 @@ def process_aar(name, aar_file, args, manifest_file):
         src_res_dir = os.path.join(zip_dir, "res")
         dst_res_dir = os.path.join(args.out, "res", "android", "res")
         if os.path.exists(src_res_dir):
-            copy_merge(src_res_dir, dst_res_dir)
+            dst = os.path.join(dst_res_dir, name + "-" + os.path.basename(aar_file).replace(".aar", ""))
+            if not os.path.exists(dst):
+                os.makedirs(dst)
+            copy_merge(src_res_dir, dst)
+            if len(os.listdir(dst) ) == 0:
+                os.rmdir(dst)
 
         # copy classes.jar
         classes_jar = os.path.join(zip_dir, "classes.jar")
