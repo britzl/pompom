@@ -73,7 +73,7 @@ def prettify_xml(xml_document):
 
 def create_empty_manifest(filename):
     with open(filename, "w") as file:
-        file.write('<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><application/></manifest>')
+        file.write('<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    package="{{android.package}}">\n    <uses-sdk android:minSdkVersion="9"/>\n    <application>\n    </application></manifest>')
 
 
 def merge_manifest_files(src_manifest_name, dst_manifest_name, name):
@@ -169,7 +169,6 @@ def copy_merge(src, dst):
         else:
             os.rename(src_file, dst_file)
 
-
 def find_files(root_dir, file_pattern):
     matches = []
     for root, dirnames, filenames in os.walk(root_dir):
@@ -214,14 +213,18 @@ def process_aar(name, aar_file, args, manifest_file):
         src_res_dir = os.path.join(zip_dir, "res")
         dst_res_dir = os.path.join(args.out, "res", "android", "res")
         if os.path.exists(src_res_dir):
-            copy_merge(src_res_dir, dst_res_dir)
+            dst = os.path.join(dst_res_dir, name + "-" + os.path.basename(aar_file).replace(".aar", ""))
+            if not os.path.exists(dst):
+                os.makedirs(dst)
+            copy_merge(src_res_dir, dst)
+            if len(os.listdir(dst) ) == 0:
+                os.rmdir(dst)
 
         # copy classes.jar
         classes_jar = os.path.join(zip_dir, "classes.jar")
         if os.path.exists(classes_jar):
             lib_dir = os.path.join(args.out, "lib", "android")
             classes_jar_dest = os.path.join(args.out, "lib", "android", name + "-" + os.path.basename(aar_file).replace(".aar", ".jar"))
-            print("Moving %s to %s" % (classes_jar, classes_jar_dest))
             shutil.move(classes_jar, classes_jar_dest)
 
         # merge manifest
@@ -255,16 +258,19 @@ def process_dependency(name, url, args, manifest_file):
 # Process a list of dependencies
 # This will download the dependencies one by one
 #
-def process_dependencies(dependencies, args):
+def process_dependencies(dependencies, args, exceptions):
     print("Downloading and unpacking Android dependencies")
 
-    manifest_file = os.path.join(args.out, "AndroidManifest.xml")
+    manifest_file = os.path.join(manifest_dir, "AndroidManifest.xml")
     if os.path.exists(manifest_file):
         os.remove(manifest_file)
-    download_android_manifest(manifest_file)
+    #download_android_manifest(manifest_file)
+    create_empty_manifest(manifest_file)
 
-    for name, url in dependencies.iteritems():
-        process_dependency(name, url, args, manifest_file)
+    for name, data in dependencies.iteritems():
+        if not exceptions or not name in exceptions:
+            process_dependency(data["group_id"], data["url"], args, manifest_file)
+        
 
 
 maven_url_cache = {}
@@ -385,12 +391,12 @@ def process_pom(pom_url, dependencies_out):
     packaging = get_pom_value(pom_url, "packaging", "jar")
     version = replace_property(get_project_version(), properties)
     url = maven_url(group_id, artifact_id, version, packaging)
-    dependency_id = group_id.replace(".", "-") + "-" + artifact_id
+    group_formatted = group_id.replace(".", "-")
+    dependency_id = group_formatted + "-" + artifact_id
     if dependencies_out.get(dependency_id):
         print("  Ignoring artifact '{}' since it has already been processed".format(dependency_id))
         return
-
-    dependencies_out[dependency_id] = url
+    dependencies_out[dependency_id] = {"url":url, "group_id":group_formatted}
 
     # process artifact dependencies
     dependencies = get_pom_element(pom_url, "dependencies")
@@ -432,6 +438,7 @@ add_argument(parser, "-p", "--pom", "poms", "Path to POM file to process. For us
 add_argument(parser, "-btv", "--build-tools-version", "build_tools_version", "Android build tools version. Optional, for use with 'deps' command.", default="28.0.2")
 add_argument(parser, "-apv", "--android-platform-version", "android_platform_version", "Android platform version. Optional, for use with 'deps' command.", default="26")
 add_argument(parser, "-pl", "--plist", "google_services_plist", "GoogleService-Info.plist as downloaded from Firebase Console. Optional, for use with 'plist' command.", default="GoogleService-Info.plist")
+add_argument(parser, "-ex", "--exclude", "exceptions", "json file with libraries you want to exclude")
 args = parser.parse_args()
 
 help = """
@@ -448,10 +455,13 @@ lib_dir = os.path.join(args.out, "lib", "android")
 if not os.path.exists(lib_dir):
     os.makedirs(lib_dir)
 
+manifest_dir = os.path.join(args.out, "manifests", "android")
+if not os.path.exists(manifest_dir):
+    os.makedirs(manifest_dir)
+
 res_dir = os.path.join(args.out, "res", "android", "res")
 if not os.path.exists(res_dir):
     os.makedirs(res_dir)
-
 
 deps_file = os.path.join(args.out, args.deps)
 
@@ -470,8 +480,12 @@ for command in args.commands:
             print("File %s does not exist" % (deps_file))
             sys.exit(1)
         with open(deps_file, "r") as file:
+            exceptions = None
+            if args.exceptions and os.path.exists(args.exceptions):
+                with open(args.exceptions, "r") as ex_file:
+                    exceptions = json.loads(ex_file.read())
             dependencies = json.loads(file.read())
-            process_dependencies(dependencies, args)
+            process_dependencies(dependencies, args, exceptions)
 
 # Success!
 print("Done")
