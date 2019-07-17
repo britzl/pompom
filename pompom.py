@@ -258,7 +258,7 @@ def process_dependency(name, url, args, manifest_file):
 # Process a list of dependencies
 # This will download the dependencies one by one
 #
-def process_dependencies(dependencies, args):
+def process_dependencies(dependencies, args, exceptions):
     print("Downloading and unpacking Android dependencies")
 
     manifest_file = os.path.join(manifest_dir, "AndroidManifest.xml")
@@ -268,7 +268,9 @@ def process_dependencies(dependencies, args):
     create_empty_manifest(manifest_file)
 
     for name, data in dependencies.iteritems():
-        process_dependency(data["group_id"], data["url"], args, manifest_file)
+        if not exceptions or not name in exceptions:
+            process_dependency(data["group_id"], data["url"], args, manifest_file)
+        
 
 
 maven_url_cache = {}
@@ -436,6 +438,7 @@ add_argument(parser, "-p", "--pom", "poms", "Path to POM file to process. For us
 add_argument(parser, "-btv", "--build-tools-version", "build_tools_version", "Android build tools version. Optional, for use with 'deps' command.", default="28.0.2")
 add_argument(parser, "-apv", "--android-platform-version", "android_platform_version", "Android platform version. Optional, for use with 'deps' command.", default="26")
 add_argument(parser, "-pl", "--plist", "google_services_plist", "GoogleService-Info.plist as downloaded from Firebase Console. Optional, for use with 'plist' command.", default="GoogleService-Info.plist")
+add_argument(parser, "-ex", "--exclude", "exceptions", "json file with libraries you want to exclude")
 args = parser.parse_args()
 
 help = """
@@ -460,7 +463,6 @@ res_dir = os.path.join(args.out, "res", "android", "res")
 if not os.path.exists(res_dir):
     os.makedirs(res_dir)
 
-
 deps_file = os.path.join(args.out, args.deps)
 
 for command in args.commands:
@@ -478,8 +480,12 @@ for command in args.commands:
             print("File %s does not exist" % (deps_file))
             sys.exit(1)
         with open(deps_file, "r") as file:
+            exceptions = None
+            if args.exceptions and os.path.exists(args.exceptions):
+                with open(args.exceptions, "r") as ex_file:
+                    exceptions = json.loads(ex_file.read())
             dependencies = json.loads(file.read())
-            process_dependencies(dependencies, args)
+            process_dependencies(dependencies, args, exceptions)
 
 # Success!
 print("Done")
