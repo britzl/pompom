@@ -3,4 +3,5 @@ firebase_analytics/
 gpgs/
 facebook/
 defold/
+push/
 .DS_Store
