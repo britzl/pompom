@@ -413,6 +413,23 @@ def process_pom(pom_url, dependencies_out):
             else:
                 print("  Ignoring artifact dependency '{}' with scope '{}'".format(dependency_artifact_id, dependency_scope))
 
+def read_exceptions(exps):
+    print(exps)
+    result = None
+    if exps:
+        for path in exps:
+            if os.path.exists(path):
+                with open(path, "r") as ex_file:
+                    if not result:
+                        result = json.loads(ex_file.read())
+                    else:
+                        data = json.loads(ex_file.read())
+                        for att, val in data.iteritems():
+                            result[att] = val
+            else:
+                print("File {0} do not exist".format(path))
+                os._exit(1)
+    return result
 
 #
 # Process a list of POMs
@@ -438,7 +455,7 @@ add_argument(parser, "-p", "--pom", "poms", "Path to POM file to process. For us
 add_argument(parser, "-btv", "--build-tools-version", "build_tools_version", "Android build tools version. Optional, for use with 'deps' command.", default="28.0.2")
 add_argument(parser, "-apv", "--android-platform-version", "android_platform_version", "Android platform version. Optional, for use with 'deps' command.", default="26")
 add_argument(parser, "-pl", "--plist", "google_services_plist", "GoogleService-Info.plist as downloaded from Firebase Console. Optional, for use with 'plist' command.", default="GoogleService-Info.plist")
-add_argument(parser, "-ex", "--exclude", "exceptions", "json file with libraries you want to exclude")
+add_argument(parser, "-ex", "--exclude", "exceptions", "json file with libraries you want to exclude", action="append")
 args = parser.parse_args()
 
 help = """
@@ -447,6 +464,7 @@ poms = [Android] Process POMs. This will download, parse and generate a list of 
 
 deps = [Android] Process dependencies. This will parse the file specified by [-d|--deps], download the .aar or .jar files, copy resources and generate an AndroidManifest.xml.
 """
+args.out = "export/"+args.out
 
 if not os.path.exists(args.out):
     os.makedirs(args.out)
@@ -465,6 +483,8 @@ if not os.path.exists(res_dir):
 
 deps_file = os.path.join(args.out, args.deps)
 
+exceptions = read_exceptions(args.exceptions)
+
 for command in args.commands:
     if command == "help":
         parser.print_help()
@@ -480,10 +500,6 @@ for command in args.commands:
             print("File %s does not exist" % (deps_file))
             sys.exit(1)
         with open(deps_file, "r") as file:
-            exceptions = None
-            if args.exceptions and os.path.exists(args.exceptions):
-                with open(args.exceptions, "r") as ex_file:
-                    exceptions = json.loads(ex_file.read())
             dependencies = json.loads(file.read())
             process_dependencies(dependencies, args, exceptions)
 

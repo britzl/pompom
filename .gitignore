@@ -1,7 +1,3 @@
 *.pyc
-firebase_analytics/
-gpgs/
-facebook/
-defold/
-push/
+export/
 .DS_Store
