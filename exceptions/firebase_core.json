@@ -19,6 +19,7 @@
    "com-google-android-gms-play-services-measurement-api":{},
    "com-google-android-gms-play-services-measurement":{},
    "com-google-firebase-firebase-analytics":{},
+   "com-google-firebase-firebase-analytics-impl":{},
    "com-android-support-support-core-utils":{},
    "com-google-android-gms-play-services-basement":{},
    "com-google-firebase-firebase-common":{},
