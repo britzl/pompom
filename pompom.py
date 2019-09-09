@@ -289,7 +289,7 @@ def maven_url(group_id, artifact_id, version, extension):
         if urllib.urlopen(url).code == 200:
             maven_url_cache[filename] = url
             return url
-    print("Unable to find a url for group {} artifact {) version {} and extension {}".format(url, group_id, artifact_id, version, extension))
+    print("Unable to find a url for group {} artifact {} version {} and extension {}".format(url, group_id, artifact_id, version, extension))
     exit(1)
 
 
@@ -299,10 +299,10 @@ pom_cache = {}
 # Recurseively download a POM and all its parents
 #
 def download_pom(pom_url):
-    print("Downloading artifact '{}'".format(pom_url))
     if pom_cache.get(pom_url):
         print("  Ignoring artifact '{}' since it has already been downloaded".format(pom_url))
         return
+    print("Downloading artifact '{}'".format(pom_url))
 
     # download and parse pom
     with tmpdir() as tmp_dir:
@@ -329,7 +329,7 @@ def download_pom(pom_url):
 #
 def get_pom_element(pom_url, tag_name):
     # some values are never inherited from parent POMs
-    NOT_INHERITED = ["artifactId", "name", "prerequisites"]
+    NOT_INHERITED = ["artifactId", "name", "prerequisites", "packaging"]
 
     xmldoc = pom_cache[pom_url]
     project = get_xml_element(xmldoc, "project")
@@ -338,7 +338,7 @@ def get_pom_element(pom_url, tag_name):
     if element:
         return element
     elif tag_name in NOT_INHERITED:
-        return default
+        return None
 
     parent = get_xml_element(project, "parent")
     if parent:
@@ -355,11 +355,13 @@ def get_pom_element(pom_url, tag_name):
 # This will take inheritance into consideration by first looking at any parent POMs
 #
 def get_pom_value(pom_url, tag_name, default=None):
-    value = get_element_value(get_pom_element(pom_url, tag_name))
-    if value:
-        return value
+    element = get_pom_element(pom_url, tag_name)
+    value = ""
+    if element:
+        value = get_element_value(element)
     else:
-        return default
+        value = default
+    return value
 
 #
 # Recursivley process POM files adding each to the output dictionary
@@ -389,6 +391,8 @@ def process_pom(pom_url, dependencies_out):
     group_id = get_pom_value(pom_url, "groupId")
     artifact_id = get_pom_value(pom_url, "artifactId")
     packaging = get_pom_value(pom_url, "packaging", "jar")
+    if packaging == "bundle":
+        packaging = "jar"
     version = replace_property(get_project_version(), properties)
     url = maven_url(group_id, artifact_id, version, packaging)
     group_formatted = group_id.replace(".", "-")
@@ -397,7 +401,6 @@ def process_pom(pom_url, dependencies_out):
         print("  Ignoring artifact '{}' since it has already been processed".format(dependency_id))
         return
     dependencies_out[dependency_id] = {"url":url, "group_id":group_formatted}
-
     # process artifact dependencies
     dependencies = get_pom_element(pom_url, "dependencies")
     if dependencies:
