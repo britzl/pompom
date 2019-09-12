@@ -73,7 +73,7 @@ def prettify_xml(xml_document):
 
 def create_empty_manifest(filename):
     with open(filename, "w") as file:
-        file.write('<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    package="{{android.package}}">\n    <uses-sdk android:minSdkVersion="9"/>\n    <application>\n    </application></manifest>')
+        file.write('<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    package="{{android.package}}">\n    <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />\n    <application>\n    </application></manifest>')
 
 
 def merge_manifest_files(src_manifest_name, dst_manifest_name, name):
