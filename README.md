@@ -14,3 +14,6 @@ You need the following tools:
 
 ## Usage
 Refer to `gpgs.sh` or `firebase_analytics.sh` for two usage examples
+
+## Useful links
+* https://mvnrepository.com/

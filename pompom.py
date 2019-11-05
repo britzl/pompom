@@ -204,7 +204,7 @@ def process_aar(name, aar_file, args, manifest_file):
                 aapt = "${ANDROID_HOME}/build-tools/%s/aapt package --non-constant-id -f -m -M %s -S %s -I ${ANDROID_HOME}/platforms/android-%s/android.jar -J %s" % (args.build_tools_version, manifest_xml, res_dir, args.android_platform_version, zip_dir)
             else:
                 aapt = "${ANDROID_HOME}/build-tools/%s/aapt package --non-constant-id -f -m -M %s -I ${ANDROID_HOME}/platforms/android-%s/android.jar -J %s" % (args.build_tools_version, manifest_xml, args.android_platform_version, zip_dir)
-            print("Running Android Asset Packaging Tool with args '%s'".format(aapt))
+            print("Running Android Asset Packaging Tool with args '{}'".format(aapt))
             call(aapt, shell=True)
 
             # compile R.java and add to classes.jar
