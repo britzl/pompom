@@ -270,7 +270,7 @@ def process_dependencies(dependencies, args, exceptions):
     for name, data in dependencies.iteritems():
         if not exceptions or not name in exceptions:
             process_dependency(data["group_id"], data["url"], args, manifest_file)
-        
+
 
 
 maven_url_cache = {}
@@ -473,14 +473,20 @@ if not os.path.exists(args.out):
     os.makedirs(args.out)
 
 lib_dir = os.path.join(args.out, "lib", "android")
+if os.path.exists(lib_dir):
+    shutil.rmtree(lib_dir)
 if not os.path.exists(lib_dir):
     os.makedirs(lib_dir)
 
 manifest_dir = os.path.join(args.out, "manifests", "android")
+if os.path.exists(manifest_dir):
+    shutil.rmtree(manifest_dir)
 if not os.path.exists(manifest_dir):
     os.makedirs(manifest_dir)
 
 res_dir = os.path.join(args.out, "res", "android", "res")
+if os.path.exists(res_dir):
+    shutil.rmtree(res_dir)
 if not os.path.exists(res_dir):
     os.makedirs(res_dir)
 
