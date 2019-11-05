@@ -17,7 +17,7 @@ from contextlib import contextmanager
 
 def javac(file):
     javac = "javac -source 1.7 -target 1.7 %s" % (file)
-    call(javac, shell=True)
+    javac, shell=True)
 
 def get_element_value(element):
     if element and element.childNodes:
@@ -186,19 +186,25 @@ def find_files(root_dir, file_pattern):
 # * Manifest stubs wil get merged with the main manifest in the output folder
 #
 def process_aar(name, aar_file, args, manifest_file):
+    print("Processing {}".format(aar_file))
     with tmpdir() as zip_dir:
         unzip(aar_file, zip_dir)
 
         # rename resources to unique filenames
-        for file in find_files(os.path.join(zip_dir, "res"), "values*.xml"):
-            os.rename(file, os.path.join(os.path.dirname(file), name + "-" + os.path.basename(file)))
+        res_dir = os.path.join(zip_dir, "res")
+        if os.path.exists(res_dir):
+            for file in find_files(res_dir, "values*.xml"):
+                os.rename(file, os.path.join(os.path.dirname(file), name + "-" + os.path.basename(file)))
 
         r_file = os.path.join(zip_dir, "R.txt")
         if os.path.exists(r_file) and os.path.getsize(r_file) > 0:
             # generate R.java
             manifest_xml = os.path.join(zip_dir, "AndroidManifest.xml")
-            res_dir = os.path.join(zip_dir, "res")
-            aapt = "${ANDROID_HOME}/build-tools/%s/aapt package --non-constant-id -f -m -M %s -S %s -I ${ANDROID_HOME}/platforms/android-%s/android.jar -J %s" % (args.build_tools_version, manifest_xml, res_dir, args.android_platform_version, zip_dir)
+            if os.path.exists(res_dir):
+                aapt = "${ANDROID_HOME}/build-tools/%s/aapt package --non-constant-id -f -m -M %s -S %s -I ${ANDROID_HOME}/platforms/android-%s/android.jar -J %s" % (args.build_tools_version, manifest_xml, res_dir, args.android_platform_version, zip_dir)
+            else:
+                aapt = "${ANDROID_HOME}/build-tools/%s/aapt package --non-constant-id -f -m -M %s -I ${ANDROID_HOME}/platforms/android-%s/android.jar -J %s" % (args.build_tools_version, manifest_xml, args.android_platform_version, zip_dir)
+            print("Running Android Asset Packaging Tool with args '%s'".format(aapt))
             call(aapt, shell=True)
 
             # compile R.java and add to classes.jar
@@ -210,7 +216,7 @@ def process_aar(name, aar_file, args, manifest_file):
             print("Not generating R.java since dependency has no resources")
 
         # copy resources
-        src_res_dir = os.path.join(zip_dir, "res")
+        src_res_dir = res_dir
         dst_res_dir = os.path.join(args.out, "res", "android", "res")
         if os.path.exists(src_res_dir):
             dst = os.path.join(dst_res_dir, name + "-" + os.path.basename(aar_file).replace(".aar", ""))
@@ -240,7 +246,7 @@ def process_aar(name, aar_file, args, manifest_file):
 # it will get unpacked.
 #
 def process_dependency(name, url, args, manifest_file):
-    print("Processing dependency {} {}".format(name, url))
+    print("\nProcessing dependency {} {}".format(name, url))
     with tmpdir() as tmp_dir:
         dependency_file = download_file(url, tmp_dir)
         if dependency_file.endswith(".jar"):
