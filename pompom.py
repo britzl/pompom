@@ -496,7 +496,7 @@ for command in args.commands:
 
     if command == "poms":
         with open(deps_file, "w") as file:
-            file.write(json.dumps(process_poms(args.poms)))
+            file.write(json.dumps(process_poms(args.poms), indent=2, sort_keys=True))
 
     if command == "deps":
         if not os.path.exists(deps_file):
