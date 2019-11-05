@@ -17,7 +17,7 @@ from contextlib import contextmanager
 
 def javac(file):
     javac = "javac -source 1.7 -target 1.7 %s" % (file)
-    javac, shell=True)
+    call(javac, shell=True)
 
 def get_element_value(element):
     if element and element.childNodes:
