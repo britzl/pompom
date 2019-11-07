@@ -13,7 +13,7 @@ You need the following tools:
 * Java (to compile generated R.java)
 
 ## Usage
-Refer to `gpgs.sh` or `firebase_analytics.sh` for two usage examples
+Refer to any of the bash script in the root of the project. There are scripts to generate the needed files for Google Play Services, Google Play Game Services, Facebook and more.
 
 ## Notes
 Manifest merging is done using a standalone version of the Android Manifest Merger tool:
