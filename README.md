@@ -15,5 +15,10 @@ You need the following tools:
 ## Usage
 Refer to `gpgs.sh` or `firebase_analytics.sh` for two usage examples
 
+## Notes
+Manifest merging is done using a standalone version of the Android Manifest Merger tool:
+
+* https://github.com/Bresiu/android-manifest-merger
+
 ## Useful links
 * https://mvnrepository.com/

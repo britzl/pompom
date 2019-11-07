@@ -70,42 +70,24 @@ def prettify_xml(xml_document):
     reparsed = parseString(xml_document.toxml())
     return '\n'.join([line for line in reparsed.toprettyxml(indent=' '*2, encoding="utf-8").split('\n') if line.strip()])
 
+EMPTY_MANIFEST = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n'
+    '   xmlns:tools="http://schemas.android.com/tools"\n'
+    '   package="{{android.package}}">\n'
+    '   <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />\n'
+    '   <application>\n'
+    '   </application>\n'
+    '</manifest>'
+)
 
 def create_empty_manifest(filename):
     with open(filename, "w") as file:
-        file.write('<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    package="{{android.package}}">\n    <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />\n    <application>\n    </application></manifest>')
-
+        file.write(EMPTY_MANIFEST)
 
 def merge_manifest_files(src_manifest_name, dst_manifest_name, name):
-    with open(dst_manifest_name, "r") as dst_file:
-        dst_manifest = dst_file.read().replace("\" />", "\"/>")
-
-    # get nodes to work on
-    src_xmldoc = minidom.parse(src_manifest_name)
-    src_manifest = get_xml_element(src_xmldoc, "manifest")
-    src_application = get_xml_element(src_manifest, "application")
-    package = src_manifest.getAttribute("package")
-    comment = src_xmldoc.createComment(package)
-    print("Merging AndroidManifest.xml from {}".format(package))
-
-    # merge manifest level nodes
-    for tag in ["uses-permission", "permission"]:
-        for node in get_xml_elements(src_manifest, tag):
-            node_xml = node.toxml().replace("${applicationId}", "{{android.package}}")
-            if node_xml not in dst_manifest:
-                dst_manifest = dst_manifest.replace("</manifest>", "\t{}\n\t{}\n</manifest>".format(comment.toxml(), node_xml))
-
-    # merge application level nodes
-    for tag in ["meta-data", "activity", "service", "receiver", "provider"]:
-        for node in get_xml_elements(src_application, tag):
-            node_xml = node.toxml().replace("${applicationId}", "{{android.package}}")
-            if node_xml not in dst_manifest:
-                dst_manifest = dst_manifest.replace("</application>", "\t{}\n\t\t{}\n\t</application>".format(comment.toxml(), node_xml))
-
-    # write prettified xml to file
-    with open(dst_manifest_name, "w") as dst_file:
-        dst_file.write(dst_manifest)
-
+    manifest_merger = "java -jar manifest-merger.jar --main %s --libs %s --out %s" % (dst_manifest_name, src_manifest_name, dst_manifest_name)
+    call(manifest_merger, shell=True)
 
 @contextmanager
 def tmpdir():
@@ -183,7 +165,7 @@ def find_files(root_dir, file_pattern):
 # * R.java will get generated from resources
 # * Resources will get copied to the output folder
 # * classes.jar will get copied to the output folder
-# * Manifest stubs wil get merged with the main manifest in the output folder
+# * Manifest stubs will get merged with the main manifest in the output folder
 #
 def process_aar(name, aar_file, args, manifest_file):
     print("Processing {}".format(aar_file))
@@ -239,6 +221,10 @@ def process_aar(name, aar_file, args, manifest_file):
             merge_manifest_files(android_manifest, manifest_file, name)
             # shutil.copy(android_manifest, os.path.join(".", name + "-AndroidManifest.xml"))
 
+        # copy proguard file
+        proguard_txt = os.path.join(zip_dir, "proguard.txt")
+        if os.path.exists(proguard_txt):
+            shutil.copy(proguard_txt, os.path.join(args.out, "manifests", "android", name + ".pro"))
 
 #
 # Process a single dependency
