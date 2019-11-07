@@ -3,7 +3,7 @@ if [ ! -d "export/gps-base-16.0.1" ]; then
 	sh gps-base-16.0.1.sh
 fi
 
-if [ ! -d "export/v" ]; then
+if [ ! -d "export/firebase_core-16.0.7" ]; then
 	sh firebase_core-16.0.7.sh
 fi
 
