@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-if [ ! -d "export/gps-base-16.0.1" ]; then
-	sh gps-base-16.0.1.sh
+if [ ! -d "export/support-v4-27.0.2" ]; then
+	sh support-v4-27.0.2.sh
+fi
+if [ ! -d "export/support-v7-27.0.2" ]; then
+	sh support-v7-27.0.2.sh
 fi
 
 python pompom.py \
@@ -13,6 +16,7 @@ python pompom.py \
 	--out facebook-5.9.0 poms
 
 python pompom.py \
-	--exclude export/gps-base-16.0.1/dependencies.json \
+	--exclude export/support-v4-27.0.2/dependencies.json \
+	--exclude export/support-v7-27.0.2/dependencies.json \
 	--out facebook-5.9.0 \
 	-apv 28 deps

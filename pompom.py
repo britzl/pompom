@@ -72,11 +72,14 @@ def prettify_xml(xml_document):
 
 EMPTY_MANIFEST = (
     '<?xml version="1.0" encoding="utf-8"?>\n'
-    '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n'
-    '   xmlns:tools="http://schemas.android.com/tools"\n'
+    '<manifest\n'
+    '   xmlns:android="http://schemas.android.com/apk/res/android"\n'
     '   package="{{android.package}}">\n'
-    '   <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />\n'
-    '   <application>\n'
+    '   <uses-sdk\n'
+    '       xmlns:tools="http://schemas.android.com/tools"\n'
+    '       android:minSdkVersion="{{android.minimum_sdk_version}}"\n'
+    '       android:targetSdkVersion="{{android.target_sdk_version}}" />\n'
+    '   <application xmlns:tools="http://schemas.android.com/tools">\n'
     '   </application>\n'
     '</manifest>'
 )
@@ -358,7 +361,7 @@ def get_pom_value(pom_url, tag_name, default=None):
 #
 # Recursivley process POM files adding each to the output dictionary
 #
-def process_pom(pom_url, dependencies_out):
+def process_pom(pom_url, parent_id, dependencies_out):
     # Replace a template value ${foo} with the actual value read from a list of properties
     def replace_property(value, properties):
         if value and value.startswith("${"):
@@ -392,7 +395,7 @@ def process_pom(pom_url, dependencies_out):
     if dependencies_out.get(dependency_id):
         print("  Ignoring artifact '{}' since it has already been processed".format(dependency_id))
         return
-    dependencies_out[dependency_id] = {"url":url, "group_id":group_formatted}
+    dependencies_out[dependency_id] = {"url":url, "group_id":group_formatted, "parent_id":parent_id}
     # process artifact dependencies
     dependencies = get_pom_element(pom_url, "dependencies")
     if dependencies:
@@ -404,7 +407,7 @@ def process_pom(pom_url, dependencies_out):
                 dependency_group_id = get_child_value(dependency, "groupId")
                 dependency_version = replace_property(get_version(dependency), properties) or version
                 dependency_pom_url = maven_url(dependency_group_id, dependency_artifact_id, dependency_version, "pom")
-                process_pom(dependency_pom_url, dependencies_out)
+                process_pom(dependency_pom_url, dependency_id, dependencies_out)
             else:
                 print("  Ignoring artifact dependency '{}' with scope '{}'".format(dependency_artifact_id, dependency_scope))
 
@@ -433,7 +436,7 @@ def process_poms(poms):
     print("Downloading and processing POMs", poms)
     dependencies = {}
     for pom in poms:
-        process_pom(pom, dependencies)
+        process_pom(pom, None, dependencies)
     return dependencies
 
 
